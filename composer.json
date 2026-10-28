@@ -1,0 +1,41 @@
+{
+    "name": "garak/tidbit",
+    "type": "library",
+    "description": "Short, time-sorted, 64-bit identifiers with a fixed-length Base58 string form",
+    "keywords": ["tidbit", "tsid", "id", "identifier", "uuid", "ulid", "snowflake", "base58"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Massimiliano Arione",
+            "email": "garakkio@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "psr/clock": "^1.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-strict-rules": "^2.1",
+        "phpunit/phpunit": "^13.4"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Garak\\Tidbit\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Garak\\Tidbit\\Tests\\": "tests"
+        }
+    }
+}

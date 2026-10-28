@@ -1,0 +1,9 @@
+services:
+    php:
+        build:
+            context: docker
+        image: garak/tidbit
+        volumes:
+            - ./:/srv/tidbit
+        working_dir: /srv/tidbit
+        tty: true
