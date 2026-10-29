@@ -6,7 +6,7 @@ use Psr\Clock\ClockInterface;
 use Random\Randomizer;
 
 /**
- * Generates Tidbits that increase strictly within one factory instance.
+ * Generates Tidbits. Those from create() increase strictly within one factory instance.
  *
  * The 22 low bits are split between node ID and counter. The counter starts at
  * a random value on each new millisecond, so separate processes (e.g. PHP-FPM
@@ -50,7 +50,7 @@ final class TidbitFactory
 
     public function create(): Tidbit
     {
-        $time = (int) $this->clock->now()->format('Uv') - Tidbit::EPOCH;
+        $time = self::toTime($this->clock->now());
         if ($time < 0) {
             throw new \OutOfRangeException('Clock is set before the Tidbit epoch.');
         }
@@ -69,16 +69,49 @@ final class TidbitFactory
             throw new \OverflowException('Tidbit time range exhausted.');
         }
 
-        return Tidbit::fromInt(
-            ($this->lastTime << Tidbit::RANDOM_BITS)
-            | ($this->node << $this->counterBits)
-            | $this->counter
-        );
+        return $this->compose($this->lastTime, $this->counter);
+    }
+
+    /**
+     * Creates a Tidbit for a given time, e.g. to backfill IDs for existing records.
+     *
+     * Does not touch the state used by create(), so it can be mixed with it freely.
+     * The counter is fully random on each call: IDs for the same millisecond are
+     * neither guaranteed unique nor ordered. With the default 10/12 split, two IDs
+     * for the same millisecond from the same node collide with a probability of 1 in 4096.
+     *
+     * @throws \OutOfRangeException when $time is outside [EPOCH, EPOCH + 2^41 ms)
+     */
+    public function createAt(\DateTimeInterface $time): Tidbit
+    {
+        $ms = self::toTime($time);
+        if ($ms < 0 || $ms > self::MAX_TIME) {
+            throw new \OutOfRangeException(\sprintf('Time %s is outside the Tidbit range.', $time->format('Y-m-d\\TH:i:s.vP')));
+        }
+
+        return $this->compose($ms, $this->randomizer->getInt(0, $this->counterMax));
     }
 
     public function getNode(): int
     {
         return $this->node;
+    }
+
+    /**
+     * Milliseconds since the Tidbit epoch.
+     */
+    private static function toTime(\DateTimeInterface $time): int
+    {
+        return (int) $time->format('Uv') - Tidbit::EPOCH;
+    }
+
+    private function compose(int $time, int $counter): Tidbit
+    {
+        return Tidbit::fromInt(
+            ($time << Tidbit::RANDOM_BITS)
+            | ($this->node << $this->counterBits)
+            | $counter
+        );
     }
 
     /**

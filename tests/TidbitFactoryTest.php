@@ -115,6 +115,105 @@ final class TidbitFactoryTest extends TestCase
     }
 
     #[Test]
+    public function createAtEmbedsGivenTime(): void
+    {
+        $factory = new TidbitFactory(node: 42, clock: new FixedClock(self::NOW));
+        $time = new \DateTimeImmutable('2004-03-15T09:30:00.123+00:00');
+
+        $tidbit = $factory->createAt($time);
+
+        self::assertSame($time->format('Uv'), (string) $tidbit->getTimestamp());
+        self::assertEquals($time, $tidbit->getDateTime());
+        self::assertSame(42, ($tidbit->toInt() >> 12) & 0x3FF);
+    }
+
+    #[Test]
+    public function createAtConvertsTimezone(): void
+    {
+        $factory = new TidbitFactory();
+        $time = new \DateTime('2004-03-15T10:30:00.123+01:00');
+
+        self::assertSame('2004-03-15T09:30:00.123+00:00', $factory->createAt($time)->getDateTime()->format('Y-m-d\TH:i:s.vP'));
+    }
+
+    #[Test]
+    public function createAtAcceptsRangeEdges(): void
+    {
+        $factory = new TidbitFactory();
+        $first = $factory->createAt(new FixedClock(Tidbit::EPOCH)->now());
+        $last = $factory->createAt(new FixedClock(Tidbit::EPOCH + (1 << Tidbit::TIME_BITS) - 1)->now());
+
+        self::assertSame('2001-01-01T00:00:00.000+00:00', $first->getDateTime()->format('Y-m-d\TH:i:s.vP'));
+        self::assertSame(Tidbit::EPOCH, $first->getTimestamp());
+        self::assertSame(Tidbit::EPOCH + (1 << Tidbit::TIME_BITS) - 1, $last->getTimestamp());
+        self::assertSame(11, \strlen($last->toString()));
+    }
+
+    #[Test]
+    public function createAtRejectsTimeBeforeEpoch(): void
+    {
+        $this->expectException(\OutOfRangeException::class);
+        new TidbitFactory()->createAt(new FixedClock(Tidbit::EPOCH - 1)->now());
+    }
+
+    #[Test]
+    public function createAtRejectsTimeAfterRange(): void
+    {
+        $this->expectException(\OutOfRangeException::class);
+        new TidbitFactory()->createAt(new FixedClock(Tidbit::EPOCH + (1 << Tidbit::TIME_BITS))->now());
+    }
+
+    #[Test]
+    public function createAtUsesFullCounterRange(): void
+    {
+        $factory = new TidbitFactory(nodeBits: 0, randomizer: new Randomizer(new Mt19937(1)));
+        $time = new \DateTimeImmutable('2004-03-15T09:30:00+00:00');
+
+        $min = \PHP_INT_MAX;
+        $max = 0;
+        for ($i = 0; $i < 1_000; ++$i) {
+            $tidbit = $factory->createAt($time);
+            self::assertSame($time->getTimestamp() * 1000, $tidbit->getTimestamp());
+            $counter = $tidbit->toInt() & 0x3FFFFF;
+            $min = \min($min, $counter);
+            $max = \max($max, $counter);
+        }
+        // create() keeps counters in the lower half; createAt() has no increments to leave room for
+        self::assertGreaterThan(0x3FFFFF >> 1, $max);
+        self::assertLessThan(0x3FFFFF >> 1, $min);
+    }
+
+    #[Test]
+    public function createStaysMonotonicAroundCreateAt(): void
+    {
+        $factory = new TidbitFactory(clock: new FixedClock(self::NOW), randomizer: new Randomizer(new Mt19937(1)));
+
+        $previous = $factory->create();
+        for ($i = 0; $i < 1_000; ++$i) {
+            // both directions: far past and past the clock
+            $factory->createAt(new FixedClock(Tidbit::EPOCH + $i)->now());
+            $factory->createAt(new FixedClock(self::NOW + 1_000_000 + $i)->now());
+            $current = $factory->create();
+            self::assertSame(1, $current->compare($previous));
+            $previous = $current;
+        }
+        self::assertLessThan(self::NOW + 1_000, $previous->getTimestamp());
+    }
+
+    #[Test]
+    public function createAtDoesNotAdvanceCreateCounter(): void
+    {
+        $factory = new TidbitFactory(node: 1, clock: new FixedClock(self::NOW), randomizer: new Randomizer(new Mt19937(1)));
+
+        $first = $factory->create();
+        $factory->createAt(new \DateTimeImmutable('2004-03-15T09:30:00+00:00'));
+        $second = $factory->create();
+
+        // first counter is at most 2047 of 4095, so the increment cannot overflow
+        self::assertSame(1, $second->toInt() - $first->toInt());
+    }
+
+    #[Test]
     public function defaultsToSystemClock(): void
     {
         $before = (int) (\microtime(true) * 1000);

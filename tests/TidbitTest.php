@@ -39,13 +39,19 @@ final class TidbitTest extends TestCase
         $tidbit = Tidbit::fromInt((1234 << Tidbit::RANDOM_BITS) | 0x3FFFFF);
 
         self::assertSame(Tidbit::EPOCH + 1234, $tidbit->getTimestamp());
-        self::assertSame('2026-01-01T00:00:01.234+00:00', $tidbit->getDateTime()->format('Y-m-d\TH:i:s.vP'));
+        self::assertSame('2001-01-01T00:00:01.234+00:00', $tidbit->getDateTime()->format('Y-m-d\TH:i:s.vP'));
     }
 
     #[Test]
-    public function epochIsStartOf2026(): void
+    public function epochIsStartOf2001(): void
     {
-        self::assertSame('2026-01-01T00:00:00.000+00:00', Tidbit::fromInt(0)->getDateTime()->format('Y-m-d\TH:i:s.vP'));
+        self::assertSame('2001-01-01T00:00:00.000+00:00', Tidbit::fromInt(0)->getDateTime()->format('Y-m-d\TH:i:s.vP'));
+    }
+
+    #[Test]
+    public function rangeEndsIn2070(): void
+    {
+        self::assertSame('2070-09-07T15:47:35.551+00:00', Tidbit::fromInt(\PHP_INT_MAX)->getDateTime()->format('Y-m-d\TH:i:s.vP'));
     }
 
     #[Test]

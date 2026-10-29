@@ -7,15 +7,20 @@ use Garak\Tidbit\Exception\InvalidTidbitException;
 /**
  * Time-sorted identifier stored in 63 bits, so it fits a signed BIGINT.
  *
- * Layout: 41 bits of milliseconds since EPOCH (about 69 years), then 22 bits
- * shared between node ID and counter (see TidbitFactory).
+ * Layout: 41 bits of milliseconds since EPOCH (about 69.7 years, until
+ * 2070-09-07), then 22 bits shared between node ID and counter (see TidbitFactory).
  *
  * Inspired by TSID, but not compatible with it: different epoch, bit layout and encoding.
  */
 final readonly class Tidbit implements \JsonSerializable, \Stringable
 {
-    /** 2026-01-01T00:00:00Z in milliseconds. Changing it breaks every existing ID. */
-    public const int EPOCH = 1767225600000;
+    /**
+     * 2001-01-01T00:00:00Z in milliseconds. Changing it breaks every existing ID.
+     *
+     * Start of the third millennium. Far enough back to backfill IDs for
+     * pre-existing content (see TidbitFactory::createAt()).
+     */
+    public const int EPOCH = 978307200000;
     public const int TIME_BITS = 41;
     public const int RANDOM_BITS = 22;
 

@@ -3,7 +3,7 @@
 Short, time-sorted, 64-bit identifiers for PHP.
 
 ```
-1FcgTdmAm33   <->   108556555512373838
+8w7E2QwnGMb   <->   3417520156305973838
 ```
 
 - Fits a signed `BIGINT`: 8 bytes in the database, native indexes, no binary columns.
@@ -39,26 +39,26 @@ use Garak\Tidbit\TidbitFactory;
 $factory = new TidbitFactory();
 $id = $factory->create();
 
-$id->toInt();          // 108556555512373838, store this
-$id->toString();       // '1FcgTdmAm33', expose this
+$id->toInt();          // 3417520156305973838, store this
+$id->toString();       // '8w7E2QwnGMb', expose this
 $id->getDateTime();    // 2026-10-27T13:24:59.717+00:00
-json_encode($id);      // '"1FcgTdmAm33"', always a string
+json_encode($id);      // '"8w7E2QwnGMb"', always a string
 
-Tidbit::fromInt(108556555512373838);
-Tidbit::fromString('1FcgTdmAm33');
-Tidbit::isValid('1FcgTdmAm33'); // true
+Tidbit::fromInt(3417520156305973838);
+Tidbit::fromString('8w7E2QwnGMb');
+Tidbit::isValid('8w7E2QwnGMb'); // true
 ```
 
-Keep one factory per process (e.g. a shared service). IDs from the same factory strictly increase, even within the same millisecond.
+Keep one factory per process (e.g. a shared service). IDs from `create()` on the same factory strictly increase, even within the same millisecond.
 
 ## Layout
 
 ```
-| 41 bits: ms since 2026-01-01 | node bits | counter bits |   (63 bits total, sign bit unused)
+| 41 bits: ms since 2001-01-01 | node bits | counter bits |   (63 bits total, sign bit unused)
                                  \______ 22 bits ______/
 ```
 
-- **Time**: 41 bits of milliseconds, valid until about 2095.
+- **Time**: 41 bits of milliseconds. Valid range: 2001-01-01T00:00:00.000Z to 2070-09-07T15:47:35.551Z.
 - **Node**: 10 bits by default. Random per factory unless set.
 - **Counter**: the remaining bits. Starts at a random value each millisecond, then increments.
 
@@ -73,6 +73,24 @@ new TidbitFactory(nodeBits: 0);           // single host: all 22 bits for the co
 ```
 
 With a random node, two processes that each generate one ID in the same millisecond collide with a probability of about 1 in 2 million. Assign distinct nodes if you need a guarantee.
+
+## Backfilling
+
+`createAt()` builds an ID for a given time, e.g. when importing records that already have a date.
+
+```php
+$factory->createAt($post->getPublishedAt());   // 2004-03-15T09:30:00+00:00
+// 423774860084961455, '1z47Pymsk3Y'
+```
+
+- Any `DateTimeInterface`, any timezone. Sub-millisecond precision is truncated.
+- Throws `OutOfRangeException` outside the valid range (see [Layout](#layout)).
+- Node bits as usual. The counter is random over its full range on every call.
+- Leaves `create()` state alone, so you can mix both on the same factory.
+
+IDs from `createAt()` for the same millisecond are **not** guaranteed unique or ordered. With the default 10/12 split, two calls on the same factory for the same millisecond collide with a probability of 1 in 4,096. For `n` records sharing a millisecond, roughly `n² / 8,192`.
+
+Source dates often have second precision, so all records published in the same second share a millisecond. To lower the odds, use a dedicated factory with `nodeBits: 0` (1 in about 4.2 million per pair), and keep a unique constraint on the column so a collision fails loudly instead of silently.
 
 ## Clock
 
@@ -101,7 +119,7 @@ In a Symfony app, the `clock` service autowires into the `$clock` argument.
 ## Caveats
 
 - Base58 is case-sensitive. Store the integer, not the string. If you must store the string, use `CHAR(11)` with a binary collation (`ascii_bin` in MySQL).
-- The ID reveals its creation time.
+- The ID reveals its creation time, or the time passed to `createAt()`.
 - Ordering across processes is by millisecond only. Within one millisecond, IDs from different nodes are not ordered by real time.
 
 ## Development
